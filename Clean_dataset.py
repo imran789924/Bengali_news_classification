@@ -19,7 +19,7 @@ moduleName = 'stopwords'
 stops = importlib.import_module(moduleName)
 
 
-stops_bengali = stops.stops_bengali
+stops_bengali = stops.stops_bengali_
 
 
 df = pd.read_csv('archive/train.csv')
@@ -35,7 +35,7 @@ for i in range(0, len(sentences)):
     t = t.split()
     lemmatizer = BengaliLemmatizer()
     #t = [ps.setm(word) for word in t if not word in set(stopwords.word('english'))]
-    t = [lemmatizer.lemmatize(word, pos = lem.POS_NOUN) for word in t if not word in set(stops_bengali)]
+    t = [lemmatizer.lemmatize(word, pos = lem.POS_NOUN) for word in t if not lemmatizer.lemmatize(word, pos = lem.POS_NOUN) in set(stops_bengali)]
     #review = ' '.join(t)
     t = [pat.sub('', word) for word in t]
     t = [word for word in t if len(word) > 1]
@@ -49,7 +49,7 @@ print(vocab.most_common(50))
 
 
 # keep tokens with a min occurrence
-min_occurane = 2
+min_occurane = 3
 tokens = [k for k,c in vocab.items() if c >= min_occurane]
 print(len(tokens))
 
@@ -58,4 +58,4 @@ with open('vocab_bangla.txt', 'w') as f:
     for item in vocab:
         f.write("%s\n" % item)
 # close file
-file.close()
+f.close()
