@@ -7,6 +7,7 @@ Created on Sun Jul  4 08:37:18 2021
 """
 
 
+import importlib
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -14,8 +15,12 @@ from numpy import asarray
 from keras.preprocessing.text import Tokenizer
 from numpy import zeros
 from keras.preprocessing.sequence import pad_sequences
+from banglakit import lemmatizer as lem
+from banglakit.lemmatizer import BengaliLemmatizer
+from tensorflow.keras.preprocessing.text import one_hot
 from keras.layers import Embedding
 from keras.models import Sequential
+import re
 
 
 
@@ -57,12 +62,32 @@ def process_data(X_head, X_body, corpus_head, corpus_body):
         #t = [ps.setm(word) for word in t if not word in set(stopwords.word('english'))]
         t_body = [lemmatizer.lemmatize(word, pos = lem.POS_NOUN) for word in t_body if not lemmatizer.lemmatize(word, pos = lem.POS_NOUN) in set(stops_bengali)]
         t_head = [lemmatizer.lemmatize(word, pos = lem.POS_NOUN) for word in t_head if not lemmatizer.lemmatize(word, pos = lem.POS_NOUN) in set(stops_bengali)]
+
+        t_head = [pat.sub('', word) for word in t_head]
+        t_head = [pat.sub('', word) for word in t_head]
+        t_head = [word for word in t_head if len(word) > 1]
+        t_body = [word for word in t_body if len(word) > 1]
+        
+        t_body = [t for t in t_head if t in vocab]
         t_body = [t for t in t_body if t in vocab]
+        
         t_body = ' '.join(t_body)
         t_head = ' '.join(t_head)
         corpus_body.append(t_body)
         corpus_head.append(t_head)
 
+vocab_filename = 'vocab_bangla.txt'
+file = open(vocab_filename, 'r')
+vocab = file.read()
+file.close()
+vocab = vocab.split()
+vocab = set(vocab)
+
+
+
+moduleName = 'stopwords'
+stops = importlib.import_module(moduleName)
+stops_bengali = stops.stops_bengali_
 
 ##############TRAINING DATA, NEWS HEAD AND BODY##########################
 
@@ -81,12 +106,6 @@ corpus_head = []
 corpus_body = []
 
 process_data(X_head, X_body, corpus_head, corpus_body)
-
-
-vocab_filename = 'vocab_bangla.txt'
-vocab = load_doc(vocab_filename)
-vocab = vocab.split()
-vocab = set(vocab)
 
 
 # create the tokenizer
@@ -133,17 +152,76 @@ from keras.layers import Flatten
 from keras.layers import Embedding
 from keras.layers.convolutional import Conv1D
 from keras.layers.convolutional import MaxPooling1D
- 
-# define model
+
+
+
 model = Sequential()
+#model.add(embedding_layer_head)
 model.add(embedding_layer_body)
 model.add(Conv1D(filters=128, kernel_size=5, activation='relu'))
 model.add(MaxPooling1D(pool_size=2))
 model.add(Flatten())
-model.add(Dense(10, activation='relu'))
+#model.add(Dense(10, activation='relu'))
 model.add(Dense(6, activation='softmax'))
 print(model.summary())
 # compile network
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 # fit network
-model.fit(X_body, y, epochs=20, verbose=2)
+model.fit(X_body, y, epochs=10, verbose=2)
+
+model.save('trained_model.h5')
+
+from keras.models import load_model
+
+model = load_model('trained_model.h5')
+model.summary()
+
+
+
+##############TEST DATA, NEWS HEAD AND BODY##########################
+
+
+df_test = pd.read_csv('archive/valid.csv')
+
+df_test.loc[df_test['label'] == 'sport', 'label'] = 'sports'
+df_test.loc[df_test['label'] == 'nation', 'label'] = 'national'
+df_test.loc[df_test['label'] == 'world', 'label'] = 'international'
+df_test.loc[df_test['label'] == 'travel', 'label'] = 'entertainment'
+
+X_head_test = df_test.iloc[:, 0]
+X_body_test = df_test.iloc[:, 1]
+y_test = df_test.iloc[:, 2].values.reshape(-1, 1)
+
+corpus_head_test = []
+corpus_body_test = []
+
+process_data(X_head_test, X_body_test, corpus_head_test, corpus_body_test)
+
+
+# sequence encode
+encoded_docs_body_test = tokenizer_head.texts_to_sequences(X_body_test)
+encoded_docs_head_test = tokenizer_body.texts_to_sequences(X_head_test)
+# pad sequences
+
+X_head_test = pad_sequences(encoded_docs_head_test, maxlen=max_length_head, padding='post')
+X_body_test = pad_sequences(encoded_docs_body_test, maxlen=max_length_body, padding='post')
+
+y_test = enc.transform(y_test)
+y_test = np_utils.to_categorical(y_test)
+
+loss, acc = model.evaluate(X_body_test, y, verbose=0)
+print('Test Accuracy: %f' % (acc*100))
+
+y_pred = model.predict(X_body_test)
+
+y_pred = y_pred.argmax(1)
+y_test = y_test.argmax(1)
+from sklearn.metrics import confusion_matrix
+cm = confusion_matrix(y_test, y_pred)
+
+###############Debugging###################
+print(model.layers)
+cw1 = np.array(model.layers[1].get_weights())
+print(cw1.shape) # 2 weight, 1 weight, 1 bias
+print(cw1[0].shape) # 3 channels, 3 by 3 kernels, 32 filters
+print(cw1[1].shape) # 32 biases
