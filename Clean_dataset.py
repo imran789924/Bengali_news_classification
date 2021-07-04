@@ -59,3 +59,23 @@ with open('vocab_bangla.txt', 'w') as f:
         f.write("%s\n" % item)
 # close file
 f.close()
+
+
+import pickle
+
+with open("corpus.txt", "wb") as fp:   #Pickling
+    pickle.dump(corpus, fp)
+
+
+with open("corpus.txt", "rb") as fp:   # Unpickling
+    corpus = pickle.load(fp)
+
+from gensim.models import Word2Vec
+model = Word2Vec(sentences = corpus, vector_size=300, window = 5, min_count = 1, workers = 4)
+
+words = list(model.wv.index_to_key)
+print('Vocabulary size: %d' % len(words))
+ 
+# save model in ASCII (word2vec) format
+filename = 'embedding_word2vec.txt'
+model.wv.save_word2vec_format(filename, binary=False)
